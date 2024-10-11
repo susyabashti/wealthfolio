@@ -44,12 +44,15 @@ export const formatDateTime = (date: string | Date, timezone?: string) => {
     time: timeFormatter.format(dateObj),
   };
 };
+
 export function formatAmount(amount: number, currency: string, displayCurrency = true) {
+  const maximumFractionDigits = amount < 0.1 ? 5 : amount < 1 ? 4 : 2;
+
   return new Intl.NumberFormat('en-US', {
     style: displayCurrency ? 'currency' : undefined,
     currency: currency,
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: maximumFractionDigits,
   }).format(amount);
 }
 
