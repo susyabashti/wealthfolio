@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Account } from '@/lib/types';
 import { getAccounts } from '@/commands/account';
 import { useSettings } from '@/lib/useSettings';
+import { QueryKeys } from '@/lib/query-keys';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 const navigation: NavigationProps = {
   primary: [
@@ -18,6 +20,11 @@ const navigation: NavigationProps = {
       icon: <Icons.Holdings className="h-5 w-5" />,
       title: 'Holdings',
       href: '/holdings',
+    },
+    {
+      icon: <Icons.Performance className="h-5 w-5" />,
+      title: 'Performance',
+      href: '/performance',
     },
     {
       icon: <Icons.Income className="h-5 w-5" />,
@@ -42,7 +49,7 @@ const AppLayout = () => {
   const { data: settings, isLoading: isSettingsLoading } = useSettings();
   const location = useLocation();
   const { data: accounts, isLoading: isAccountsLoading } = useQuery<Account[], Error>({
-    queryKey: ['accounts'],
+    queryKey: [QueryKeys.ACCOUNTS],
     queryFn: getAccounts,
   });
 
@@ -59,15 +66,17 @@ const AppLayout = () => {
     return <Navigate to="/onboarding?step=1" />;
   }
   return (
-    <div className="flex min-h-screen rounded-xl border bg-background">
+    <div className="flex min-h-screen bg-background">
       <SidebarNav navigation={navigation} />
       <div className="relative flex h-screen w-full overflow-hidden">
-        <main className="flex flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto">
-            <div data-tauri-drag-region="true" className="draggable h-6 w-full"></div>
-            <Outlet />
-          </div>
-        </main>
+        <ErrorBoundary>
+          <main className="flex flex-1 flex-col">
+            <div className="flex-1 overflow-y-auto">
+              <div data-tauri-drag-region="true" className="draggable h-6 w-full"></div>
+              <Outlet />
+            </div>
+          </main>
+        </ErrorBoundary>
       </div>
       <Toaster />
       {/* <TailwindIndicator /> */}

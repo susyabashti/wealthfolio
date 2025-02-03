@@ -24,7 +24,7 @@ export function ApplicationHeader({
 }: ApplicationHeaderProps) {
   const navigate = useNavigate();
   return (
-    <div className={cn('flex w-full items-center justify-between px-2', className)}>
+    <div className={cn('flex w-full items-center justify-between', className)}>
       <div className="flex items-center gap-2">
         {displayBack ? (
           backUrl ? (
@@ -42,14 +42,14 @@ export function ApplicationHeader({
         <div data-tauri-drag-region="true" className="draggable flex items-center space-x-4">
           {headingPrefix && (
             <>
-              <h1 className="font-heading text-2xl font-bold tracking-tight text-muted-foreground">
+              <h1 className="font-heading text-xl font-bold tracking-tight text-muted-foreground">
                 {headingPrefix}
               </h1>
               <span className="h-6 border-l-2"></span>
             </>
           )}
 
-          <h1 className="font-heading text-2xl font-bold tracking-tight">{heading}</h1>
+          <h1 className="font-heading text-xl font-bold tracking-tight">{heading}</h1>
           {text && <p className="ml-4 text-lg font-light text-muted-foreground">{text}</p>}
         </div>
       </div>

@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateAssetProfile } from '@/commands/market-data';
+import { updateAssetProfile, updateAssetDataSource } from '@/commands/market-data';
 import { toast } from '@/components/ui/use-toast';
 import { QueryKeys } from '@/lib/query-keys';
+import { logger } from '@/adapters';
 
 export const useAssetProfileMutations = () => {
   const queryClient = useQueryClient();
@@ -9,6 +10,7 @@ export const useAssetProfileMutations = () => {
   const handleSuccess = (message: string, assetId: string) => {
     queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA, assetId] });
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
     toast({
       title: message,
       variant: 'success',
@@ -26,16 +28,28 @@ export const useAssetProfileMutations = () => {
   const updateAssetProfileMutation = useMutation({
     mutationFn: updateAssetProfile,
     onSuccess: (result) => {
-      console.log('Asset profile update result:', result);
       handleSuccess('Asset profile updated successfully.', result.id);
     },
     onError: (error) => {
-      console.error('Error updating asset profile:', error);
+      logger.error(`Error updating asset profile: ${error}`);
       handleError('updating the asset profile');
+    },
+  });
+
+  const updateAssetDataSourceMutation = useMutation({
+    mutationFn: ({ symbol, dataSource }: { symbol: string; dataSource: string }) =>
+      updateAssetDataSource(symbol, dataSource),
+    onSuccess: (result) => {
+      handleSuccess('Asset data source updated successfully.', result.id);
+    },
+    onError: (error) => {
+      logger.error(`Error updating asset data source: ${error}`);
+      handleError('updating the asset data source');
     },
   });
 
   return {
     updateAssetProfileMutation,
+    updateAssetDataSourceMutation,
   };
 };

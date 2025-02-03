@@ -58,7 +58,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
-    manualPagination,
+    manualPagination: true,
     state: {
       sorting,
       columnVisibility,
@@ -67,7 +67,7 @@ export function DataTable<TData, TValue>({
       pagination: manualPagination
         ? undefined
         : {
-            pageSize: 50,
+            pageSize: 500,
             pageIndex: 0,
           },
     },
@@ -90,7 +90,7 @@ export function DataTable<TData, TValue>({
       <DataTableToolbar table={table} searchBy={searchBy} filters={filters} />
       <div className={`rounded-md border ${scrollable ? 'h-[700px] overflow-y-auto' : ''}`}>
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {

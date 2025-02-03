@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { GainAmount } from '@/components/gain-amount';
 import { GainPercent } from '@/components/gain-percent';
 import { HistoryChart } from '@/components/history-chart';
+import IntervalSelector from '@/components/interval-selector';
 import Balance from './balance';
 import { useQuery } from '@tanstack/react-query';
 import { PortfolioHistory, AccountSummary } from '@/lib/types';
@@ -12,11 +14,11 @@ import { QueryKeys } from '@/lib/query-keys';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { useRecalculatePortfolioMutation } from '@/hooks/useCalculateHistory';
+import { useCalculateHistoryMutation } from '@/hooks/useCalculateHistory';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
+import { PrivacyToggle } from '@/components/privacy-toggle';
 
-// filter
 function DashboardSkeleton() {
   return (
     <div className="grid h-full gap-4 sm:grid-cols-1 md:grid-cols-3">
@@ -33,7 +35,8 @@ function DashboardSkeleton() {
 }
 
 export default function DashboardPage() {
-  const updatePortfolioMutation = useRecalculatePortfolioMutation({
+  const [interval, setInterval] = useState<'1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL'>('3M');
+  const updatePortfolioMutation = useCalculateHistoryMutation({
     successTitle: 'Portfolio recalculated successfully',
     errorTitle: 'Failed to recalculate portfolio',
   });
@@ -58,35 +61,42 @@ export default function DashboardPage() {
   const todayValue = portfolioHistory?.[portfolioHistory.length - 1];
 
   const handleRecalculate = async () => {
-    updatePortfolioMutation.mutate();
+    updatePortfolioMutation.mutate({
+      accountIds: undefined,
+      forceFullCalculation: true,
+    });
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-screen flex-col">
       <div data-tauri-drag-region="true" className="draggable h-8 w-full"></div>
-      <div className="flex h-full px-4 py-2 md:px-6 lg:px-10">
+      <div className="flex px-4 py-2 md:px-6 lg:px-10">
         <HoverCard>
           <HoverCardTrigger className="flex cursor-pointer items-center">
-            <div>
-              <Balance
-                targetValue={todayValue?.totalValue || 0}
-                duration={500}
-                currency={todayValue?.currency || 'USD'}
-              />
-
-              <div className="flex space-x-3 text-sm">
-                <GainAmount
-                  className="text-md font-light"
-                  value={todayValue?.totalGainValue || 0}
+            <div className="flex items-start gap-2">
+              <div>
+                <Balance
+                  targetValue={todayValue?.totalValue || 0}
                   currency={todayValue?.currency || 'USD'}
-                  displayCurrency={false}
-                ></GainAmount>
-                <div className="my-1 border-r border-gray-300 pr-2" />
-                <GainPercent
-                  className="text-md font-light"
-                  value={todayValue?.totalGainPercentage || 0}
-                ></GainPercent>
+                  displayCurrency={true}
+                />
+
+                <div className="flex space-x-3 text-sm">
+                  <GainAmount
+                    className="text-md font-light"
+                    value={todayValue?.totalGainValue || 0}
+                    currency={todayValue?.currency || 'USD'}
+                    displayCurrency={false}
+                  ></GainAmount>
+                  <div className="my-1 border-r border-secondary pr-2" />
+                  <GainPercent
+                    className="text-md font-light"
+                    value={todayValue?.totalGainPercentage || 0}
+                    animated={true}
+                  ></GainPercent>
+                </div>
               </div>
+              <PrivacyToggle className="mt-1" />
             </div>
           </HoverCardTrigger>
           <HoverCardContent align="start" className="w-80 shadow-none">
@@ -121,9 +131,17 @@ export default function DashboardPage() {
         </HoverCard>
       </div>
 
-      <HistoryChart data={portfolioHistory || []} height={240} />
+      <div className="h-[300px]">
+        <HistoryChart data={portfolioHistory || []} interval={interval} />
+        <IntervalSelector
+          className="relative bottom-0 left-0 right-0 z-10"
+          onIntervalSelect={(newInterval) => {
+            setInterval(newInterval);
+          }}
+        />
+      </div>
 
-      <div className="mx-auto h-full w-full bg-gradient-to-b from-custom-green to-custom-green/30 px-4 pt-8 dark:from-custom-green-dark dark:to-custom-green-dark/30 md:px-6 md:pt-12 lg:px-10 lg:pt-20">
+      <div className="flex-grow bg-gradient-to-t from-success/30 via-success/15 to-success/10 px-4 pt-8 md:px-6 md:pt-12 lg:px-10 lg:pt-20">
         <div className="grid gap-12 sm:grid-cols-1 md:grid-cols-3">
           <div className="md:col-span-2">
             <Accounts className="border-none bg-transparent shadow-none" accounts={accounts} />

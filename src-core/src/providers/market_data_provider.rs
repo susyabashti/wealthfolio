@@ -21,6 +21,12 @@ pub enum MarketDataError {
     Unknown(String),
 }
 
+#[derive(Debug)]
+pub enum MarketDataProviderType {
+    Yahoo,
+    Manual,
+}
+
 #[async_trait]
 pub trait MarketDataProvider: Send + Sync {
     async fn search_ticker(&self, query: &str) -> Result<Vec<QuoteSummary>, MarketDataError>;
@@ -33,4 +39,9 @@ pub trait MarketDataProvider: Send + Sync {
         end: SystemTime,
     ) -> Result<Vec<Quote>, MarketDataError>;
     async fn get_exchange_rate(&self, from: &str, to: &str) -> Result<f64, MarketDataError>;
+}
+
+#[async_trait]
+pub trait AssetProfiler: Send + Sync {
+    async fn get_asset_profile(&self, symbol: &str) -> Result<NewAsset, MarketDataError>;
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { ApplicationHeader } from '@/components/header';
 import { ApplicationShell } from '@/components/shell';
@@ -5,10 +6,10 @@ import { ApplicationShell } from '@/components/shell';
 import { GainAmount } from '@/components/gain-amount';
 import { GainPercent } from '@/components/gain-percent';
 import { HistoryChart } from '@/components/history-chart';
+import IntervalSelector from '@/components/interval-selector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { formatAmount } from '@/lib/utils';
 import { useParams } from 'react-router-dom';
 import AccountDetail from './account-detail';
 import AccountHoldings from './account-holdings';
@@ -22,9 +23,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useRecalculatePortfolioMutation } from '@/hooks/useCalculateHistory';
 import { AccountContributionLimit } from './account-contribution-limit';
+import { PrivacyAmount } from '@/components/privacy-amount';
+import { PrivacyToggle } from '@/components/privacy-toggle';
 
 const AccountPage = () => {
   const { id = '' } = useParams<{ id: string }>();
+  const [interval, setInterval] = useState<'1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL'>('3M');
 
   const { data: accounts, isLoading: isAccountsLoading } = useQuery<AccountSummary[], Error>({
     queryKey: [QueryKeys.ACCOUNTS_SUMMARY],
@@ -72,23 +76,30 @@ const AccountPage = () => {
             <CardTitle className="text-md">
               <HoverCard>
                 <HoverCardTrigger asChild className="cursor-pointer">
-                  <div>
-                    <p className="pt-3 text-xl font-bold">
-                      {formatAmount(performance?.totalValue || 0, performance?.currency || 'USD')}
-                    </p>
-                    <div className="flex space-x-3 text-sm">
-                      <GainAmount
-                        className="text-sm font-light"
-                        value={performance?.totalGainValue || 0}
-                        currency={account?.currency || 'USD'}
-                        displayCurrency={false}
-                      />
-                      <div className="my-1 border-r border-gray-300 pr-2" />
-                      <GainPercent
-                        className="text-sm font-light"
-                        value={performance?.totalGainPercentage || 0}
-                      />
+                  <div className="flex items-start gap-2">
+                    <div>
+                      <p className="pt-3 text-xl font-bold">
+                        <PrivacyAmount
+                          value={performance?.totalValue || 0}
+                          currency={performance?.currency || 'USD'}
+                        />
+                      </p>
+                      <div className="flex space-x-3 text-sm">
+                        <GainAmount
+                          className="text-sm font-light"
+                          value={performance?.totalGainValue || 0}
+                          currency={account?.currency || 'USD'}
+                          displayCurrency={false}
+                        />
+                        <div className="my-1 border-r border-gray-300 pr-2" />
+                        <GainPercent
+                          className="text-sm font-light"
+                          value={performance?.totalGainPercentage || 0}
+                          animated={true}
+                        />
+                      </div>
                     </div>
+                    <PrivacyToggle className="mt-3" />
                   </div>
                 </HoverCardTrigger>
                 <HoverCardContent align="start" className="w-80 shadow-none">
@@ -140,7 +151,15 @@ const AccountPage = () => {
                     <Skeleton className="h-8 w-full" />
                   </div>
                 ) : (
-                  <HistoryChart data={accountHistory || []} />
+                  <div className="h-[400px] w-full">
+                    <HistoryChart data={accountHistory || []} interval={interval} />
+                    <IntervalSelector
+                      className="relative bottom-10 left-0 right-0 z-10"
+                      onIntervalSelect={(newInterval) => {
+                        setInterval(newInterval);
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -156,14 +175,11 @@ const AccountPage = () => {
           </div>
         )}
       </div>
-      <div className="pt-6">
-        <AccountHoldings
-          holdings={(accountHoldings || []).filter(
-            (holding) => !holding.symbol.startsWith('$CASH'),
-          )}
-          isLoading={isLoadingHoldings}
-        />
-      </div>
+
+      <AccountHoldings
+        holdings={(accountHoldings || []).filter((holding) => !holding.symbol.startsWith('$CASH'))}
+        isLoading={isLoadingHoldings}
+      />
     </ApplicationShell>
   );
 };

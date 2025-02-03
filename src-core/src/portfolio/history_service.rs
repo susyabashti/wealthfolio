@@ -1,13 +1,15 @@
-use crate::error::{PortfolioError, Result};
+use crate::errors::{CurrencyError, Error, Result};
 use crate::fx::fx_service::CurrencyExchangeService;
 use crate::market_data::market_data_service::MarketDataService;
 use crate::models::{Account, Activity, HistorySummary, PortfolioHistory, Quote};
 use chrono::{Duration, NaiveDate, Utc};
+use diesel::result::Error as DieselError;
 
 use bigdecimal::BigDecimal;
 use diesel::prelude::*;
 use diesel::sql_types::Text;
 use diesel::SqliteConnection;
+use log::{debug,warn};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::default::Default;
@@ -47,10 +49,7 @@ impl HistoryService {
     ) -> Result<Vec<PortfolioHistory>> {
         use crate::schema::portfolio_history::dsl::*;
 
-        let result = portfolio_history
-            .load::<PortfolioHistory>(conn)
-            .map_err(PortfolioError::from)?;
-
+        let result = portfolio_history.load::<PortfolioHistory>(conn)?;
         Ok(result)
     }
 
@@ -67,10 +66,8 @@ impl HistoryService {
             query = query.filter(account_id.eq(other_id));
         }
 
-        query
-            .order(date.asc())
-            .load::<PortfolioHistory>(conn)
-            .map_err(PortfolioError::from)
+        let result = query.order(date.asc()).load::<PortfolioHistory>(conn)?;
+        Ok(result)
     }
 
     pub fn get_latest_account_history(
@@ -80,11 +77,12 @@ impl HistoryService {
     ) -> Result<PortfolioHistory> {
         use crate::schema::portfolio_history::dsl::*;
 
-        portfolio_history
+        let result = portfolio_history
             .filter(account_id.eq(input_account_id))
             .order(date.desc())
-            .first(conn)
-            .map_err(PortfolioError::from)
+            .first(conn)?;
+
+        Ok(result)
     }
 
     pub fn calculate_historical_data(
@@ -151,10 +149,14 @@ impl HistoryService {
             .map(|(summary, _)| summary.clone())
             .collect();
 
+        debug!("Calculated summaries: {:?}", summaries);
+
         let account_histories: Vec<PortfolioHistory> = summaries_and_histories
             .into_iter()
             .flat_map(|(_, histories)| histories)
             .collect();
+
+        debug!("Calculated histories: {:?}", account_histories);
 
         // If force_full_calculation is true, delete existing history for the accounts and TOTAL
         if force_full_calculation {
@@ -176,7 +178,7 @@ impl HistoryService {
     fn initialize_fx_service(&self, conn: &mut SqliteConnection) -> Result<()> {
         self.fx_service
             .initialize(conn)
-            .map_err(|e| PortfolioError::CurrencyConversionError(e.to_string()))
+            .map_err(|e| Error::Currency(CurrencyError::ConversionFailed(e.to_string())))
     }
 
     fn group_activities_by_account(
@@ -277,12 +279,21 @@ impl HistoryService {
         let mut last_histories = Vec::new();
 
         for account_id in &account_ids {
-            let history: QueryResult<PortfolioHistory> = diesel::sql_query(query)
+            let history = diesel::sql_query(query)
                 .bind::<Text, _>(account_id)
-                .get_result(conn);
+                .get_result::<PortfolioHistory>(conn);
 
-            if let Ok(history) = history {
-                last_histories.push(history);
+            match history {
+                Ok(history) => {
+                    last_histories.push(history);
+                }
+                Err(DieselError::NotFound) => {
+                    // Skip if no history found for this account
+                    warn!("No history found for account {}", account_id);
+                }
+                Err(e) => {
+                    return Err(Error::from(e));
+                }
             }
         }
 
@@ -298,7 +309,7 @@ impl HistoryService {
         &self,
         account: &Account,
         account_activities: &HashMap<String, Vec<Activity>>,
-        quotes: &Arc<HashMap<(String, NaiveDate), Quote>>,
+        quotes: &Arc<HashMap<String, Vec<(NaiveDate, Quote)>>>,
         start_dates: &HashMap<String, NaiveDate>,
         last_histories: &HashMap<String, Option<PortfolioHistory>>,
         end_date: NaiveDate,
@@ -445,7 +456,7 @@ impl HistoryService {
         &self,
         account_id: &str,
         activities: &[Activity],
-        quotes: &HashMap<(String, NaiveDate), Quote>,
+        quotes: &Arc<HashMap<String, Vec<(NaiveDate, Quote)>>>,
         start_date: NaiveDate,
         end_date: NaiveDate,
         account_currency: String,
@@ -504,7 +515,12 @@ impl HistoryService {
                     );
 
                 let market_value = updated_market_value;
-                let total_value = &cumulative_cash + &market_value;
+
+                let total_value = if cumulative_cash > BigDecimal::from(0) {
+                    &cumulative_cash + &market_value
+                } else {
+                    market_value.clone()
+                };
 
                 let day_gain_percentage = if opening_market_value != BigDecimal::from(0) {
                     (&day_gain_value / &opening_market_value) * BigDecimal::from(100)
@@ -620,6 +636,7 @@ impl HistoryService {
         book_cost: &mut BigDecimal,
         account_currency: &str,
     ) {
+
         // Get exchange rate if activity currency is different from account currency
         let exchange_rate = BigDecimal::from_f64(
             self.fx_service
@@ -773,8 +790,7 @@ impl HistoryService {
                     holdings.eq(&record.holdings),
                     calculated_at.eq(record.calculated_at),
                 ))
-                .execute(conn)
-                .map_err(PortfolioError::from)?;
+                .execute(conn)?;
         }
 
         Ok(())
@@ -783,7 +799,7 @@ impl HistoryService {
     fn calculate_holdings_value(
         &self,
         holdings: &HashMap<String, BigDecimal>,
-        quotes: &HashMap<(String, NaiveDate), Quote>,
+        quotes: &Arc<HashMap<String, Vec<(NaiveDate, Quote)>>>,
         date: NaiveDate,
         asset_currencies: &HashMap<String, String>,
         account_currency: &str,
@@ -829,13 +845,16 @@ impl HistoryService {
         &self,
         asset_id: &str,
         date: NaiveDate,
-        quotes: &'a HashMap<(String, NaiveDate), Quote>,
+        quotes: &'a Arc<HashMap<String, Vec<(NaiveDate, Quote)>>>,
     ) -> Option<&'a Quote> {
-        quotes.get(&(asset_id.to_string(), date)).or_else(|| {
-            (1..=30).find_map(|days_back| {
-                let lookup_date = date - Duration::days(days_back);
-                quotes.get(&(asset_id.to_string(), lookup_date))
-            })
+
+        quotes
+            .get(asset_id)
+            .and_then(|alt_quotes| {
+                alt_quotes
+                    .iter()
+                    .find(|(quote_date, _)| *quote_date <= date)
+                    .map(|(_, quote)| quote)
         })
     }
 
@@ -877,9 +896,7 @@ impl HistoryService {
         let mut account_ids: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
         account_ids.push("TOTAL".to_string());
 
-        delete(portfolio_history.filter(account_id.eq_any(account_ids)))
-            .execute(conn)
-            .map_err(PortfolioError::from)?;
+        delete(portfolio_history.filter(account_id.eq_any(account_ids))).execute(conn)?;
 
         Ok(())
     }

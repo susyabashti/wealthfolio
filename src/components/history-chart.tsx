@@ -1,20 +1,29 @@
-import { useMemo, useState } from 'react';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
-import IntervalSelector from '@/components/interval-selector';
+import { useMemo } from 'react';
+import { Area, AreaChart, Tooltip, YAxis, TooltipProps } from 'recharts';
+import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import { formatAmount, formatDate } from '@/lib/utils';
+import { ChartConfig, ChartContainer } from './ui/chart';
+import { useBalancePrivacy } from '@/context/privacy-context';
+import { GainPercent } from '@/components/gain-percent';
+import { Separator } from '@radix-ui/react-separator';
 
-type CustomTooltipProps = {
-  active: boolean;
-  payload: { value: number; payload: any }[];
+type CustomTooltipProps = TooltipProps<ValueType, NameType> & {
+  isBalanceHidden: boolean;
 };
 
-const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload, isBalanceHidden }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="center-items">
+      <div className="center-items space-y-1">
         <p className="font-thin">{formatDate(data.date)}</p>
-        <p className="label">{formatAmount(payload[0].value, data.currency, false)}</p>
+        <div className="label flex items-center">
+          {isBalanceHidden
+            ? `•••• `
+            : `${formatAmount(Number(payload[0].value), data.currency, false)} `}
+          <Separator orientation="vertical" className="mx-1 h-4 w-px bg-secondary" />
+          <GainPercent value={data.totalGainPercentage} className="items-start text-left text-xs" />
+        </div>
       </div>
     );
   }
@@ -25,17 +34,19 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 interface HistoryChartData {
   date: string;
   totalValue: number;
+  totalGainPercentage: number;
   currency: string;
 }
 
 export function HistoryChart({
   data,
-  height = 390,
+  interval,
 }: {
   data: HistoryChartData[];
-  height?: number;
+  interval: '1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL';
 }) {
-  const [interval, setInterval] = useState<'1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL'>('3M');
+  const { isBalanceHidden } = useBalancePrivacy();
+
   const filteredData = useMemo(() => {
     if (!data) return [];
     const today = new Date();
@@ -63,52 +74,49 @@ export function HistoryChart({
     return data.filter((d) => new Date(d.date) >= startDate);
   }, [data, interval]);
 
+  const chartConfig = {
+    totalValue: {
+      label: 'Total Value',
+    },
+  } satisfies ChartConfig;
+
   return (
-    <div className="relative flex h-full flex-col">
-      <div className="flex-grow">
-        <ResponsiveContainer width="100%" height={height}>
-          <AreaChart
-            data={filteredData}
-            stackOffset="sign"
-            margin={{
-              top: 0,
-              right: 0,
-              left: 0,
-              bottom: 0,
-            }}
-          >
-            <defs>
-              <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#cbd492" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="#cad38c" stopOpacity={0.4} />
-              </linearGradient>
-            </defs>
-            {/* @ts-ignore */}
-            <Tooltip content={<CustomTooltip />} />
-            {interval !== 'ALL' && interval !== '1Y' && (
-              <YAxis hide type="number" domain={['auto', 'auto']} />
-            )}
-            <Area
-              isAnimationActive={true}
-              animationDuration={300}
-              animationEasing="ease-out"
-              connectNulls={true}
-              type="monotone"
-              dataKey="totalValue"
-              stroke="#a2b35e"
-              fillOpacity={1}
-              fill="url(#colorUv)"
-              baseLine={10000}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      <IntervalSelector
-        className="absolute -bottom-10 left-0 right-0 z-10"
-        onIntervalSelect={(newInterval) => {
-          setInterval(newInterval);
+    <ChartContainer config={chartConfig} className="h-full w-full">
+      <AreaChart
+        data={filteredData}
+        stackOffset="sign"
+        margin={{
+          top: 0,
+          right: 0,
+          left: 0,
+          bottom: 0,
         }}
-      />
-    </div>
+      >
+        <defs>
+          <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.2} />
+            <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0.1} />
+          </linearGradient>
+        </defs>
+        {/* @ts-ignore */}
+        <Tooltip
+          content={(props) => <CustomTooltip {...props} isBalanceHidden={isBalanceHidden} />}
+        />
+        {interval !== 'ALL' && interval !== '1Y' && (
+          <YAxis hide type="number" domain={['auto', 'auto']} />
+        )}
+        <Area
+          isAnimationActive={true}
+          animationDuration={300}
+          animationEasing="ease-out"
+          connectNulls={true}
+          type="monotone"
+          dataKey="totalValue"
+          stroke="hsl(var(--success))"
+          fillOpacity={1}
+          fill="url(#colorUv)"
+        />
+      </AreaChart>
+    </ChartContainer>
   );
 }

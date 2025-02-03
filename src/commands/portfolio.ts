@@ -1,10 +1,11 @@
-import { getRunEnv, RUN_ENV, invokeTauri } from '@/adapters';
+import { getRunEnv, RUN_ENV, invokeTauri, logger } from '@/adapters';
 import {
   Holding,
   IncomeSummary,
   HistorySummary,
   PortfolioHistory,
   AccountSummary,
+  CumulativeReturns,
 } from '@/lib/types';
 
 export const calculateHistoricalData = async (params: {
@@ -19,7 +20,7 @@ export const calculateHistoricalData = async (params: {
         throw new Error(`Unsupported`);
     }
   } catch (error) {
-    console.error('Error calculating historical data:', error);
+    logger.error('Error calculating historical data.');
     throw error;
   }
 };
@@ -33,7 +34,7 @@ export const recalculatePortfolio = async (): Promise<HistorySummary[]> => {
         throw new Error(`Unsupported`);
     }
   } catch (error) {
-    console.error('Error recalculating portfolio:', error);
+    logger.error('Error recalculating portfolio.');
     throw error;
   }
 };
@@ -47,7 +48,7 @@ export const computeHoldings = async (): Promise<Holding[]> => {
         throw new Error(`Unsupported`);
     }
   } catch (error) {
-    console.error('Error computing holdings:', error);
+    logger.error('Error computing holdings.');
     throw error;
   }
 };
@@ -61,7 +62,7 @@ export const getIncomeSummary = async (): Promise<IncomeSummary[]> => {
         throw new Error(`Unsupported`);
     }
   } catch (error) {
-    console.error('Error fetching income summary:', error);
+    logger.error('Error fetching income summary.');
     throw error;
   }
 };
@@ -75,7 +76,7 @@ export const getHistory = async (accountId?: string): Promise<PortfolioHistory[]
         throw new Error(`Unsupported`);
     }
   } catch (error) {
-    console.error('Error fetching portfolio history:', error);
+    logger.error('Error fetching portfolio history.');
     throw error;
   }
 };
@@ -89,7 +90,43 @@ export const getAccountsSummary = async (): Promise<AccountSummary[]> => {
         throw new Error(`Unsupported`);
     }
   } catch (error) {
-    console.error('Error fetching active accounts summary:', error);
+    logger.error('Error fetching active accounts summary.');
+    throw error;
+  }
+};
+
+export const calculateAccountCumulativeReturns = async (
+  accountId: string,
+  startDate: string,
+  endDate: string,
+  method: 'TWR' | 'MWR' = 'TWR',
+): Promise<CumulativeReturns> => {
+  try {
+    return invokeTauri('calculate_account_cumulative_returns', {
+      accountId,
+      startDate,
+      endDate,
+      method,
+    });
+  } catch (error) {
+    logger.error('Error calculating cumulative returns.');
+    throw error;
+  }
+};
+
+export const calculateSymbolCumulativeReturns = async (
+  symbol: string,
+  startDate: string,
+  endDate: string,
+): Promise<CumulativeReturns> => {
+  try {
+    return invokeTauri('calculate_symbol_cumulative_returns', {
+      symbol,
+      startDate,
+      endDate,
+    });
+  } catch (error) {
+    logger.error('Error calculating symbol cumulative returns.');
     throw error;
   }
 };
