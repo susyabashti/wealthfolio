@@ -1,15 +1,24 @@
 import { useSettingsContext } from '@/lib/settings-provider';
 import { Holding } from '@/lib/types';
-import { cn, formatPercent } from '@/lib/utils';
-import { useMemo, useState } from 'react';
-import { ResponsiveContainer, Treemap } from 'recharts';
+import { formatPercent, formatAmount } from '@wealthfolio/ui';
+import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
+import { ResponsiveContainer, Treemap, Tooltip as ChartTooltip } from 'recharts';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyPlaceholder } from '@/components/ui/empty-placeholder';
+import { Icons } from '@/components/ui/icons';
+import {
+  Tooltip as Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { usePersistentState } from '@/hooks/use-persistent-state';
 
 type ReturnType = 'daily' | 'total';
+type DisplayMode = 'symbol' | 'name';
 
 const ReturnTypeSelector: React.FC<{
   selectedType: ReturnType;
@@ -35,6 +44,26 @@ const ReturnTypeSelector: React.FC<{
       </Button>
     </div>
   </div>
+);
+
+const DisplayModeToggle: React.FC<{
+  displayMode: DisplayMode;
+  onToggle: () => void;
+}> = ({ displayMode, onToggle }) => (
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button variant="secondary" size="icon" className="h-8 w-8 rounded-full" onClick={onToggle}>
+        {displayMode === 'symbol' ? (
+          <Icons.Hash className="h-4 w-4" />
+        ) : (
+          <Icons.Type className="h-4 w-4" />
+        )}
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent>
+      <p>{displayMode === 'symbol' ? 'Show full names' : 'Show symbols'}</p>
+    </TooltipContent>
+  </Tooltip>
 );
 
 interface ColorScale {
@@ -70,14 +99,34 @@ function getColorScale(gain: number, maxGain: number, minGain: number): ColorSca
   };
 }
 
+// Function to truncate text based on available width
+function truncateText(text: string, maxWidth: number, fontSize: number): string {
+  if (!text) return '';
+
+  // Approximate character width based on fontSize (rough estimate)
+  const charWidth = fontSize * 0.6;
+  const maxChars = Math.floor(maxWidth / charWidth);
+
+  if (text.length <= maxChars) return text;
+
+  // If we need to truncate, leave space for "..."
+  const truncatedLength = Math.max(1, maxChars - 3);
+  return text.substring(0, truncatedLength) + '...';
+}
+
 const CustomizedContent = (props: any) => {
-  const { depth, x, y, width, height, name, gain, maxGain, minGain } = props;
+  const { depth, x, y, width, height, symbol, name, gain, maxGain, minGain, displayMode } = props;
   const fontSize = Math.min(width, height) < 80 ? Math.min(width, height) * 0.16 : 13;
   const fontSize2 = Math.min(width, height) < 80 ? Math.min(width, height) * 0.14 : 12;
   const colorScale = getColorScale(gain, maxGain, minGain);
 
+  // Determine what text to display based on mode
+  const displayText = displayMode === 'name' && name ? name : symbol;
+  // Truncate text to fit within the available width (with some padding)
+  const truncatedText = truncateText(displayText, width - 16, fontSize + 1);
+
   return (
-    <g>
+    <g style={{ cursor: 'pointer' }}>
       <rect
         x={x}
         y={y}
@@ -96,7 +145,7 @@ const CustomizedContent = (props: any) => {
       />
       {depth === 1 ? (
         <>
-          <Link to={`/holdings/${name}`}>
+          <Link to={`/holdings/${encodeURIComponent(symbol)}`}>
             <text
               x={x + width / 2}
               y={y + height / 2}
@@ -107,7 +156,7 @@ const CustomizedContent = (props: any) => {
                 fontSize: fontSize + 1,
               }}
             >
-              {name}
+              {truncatedText}
             </text>
           </Link>
 
@@ -130,76 +179,142 @@ const CustomizedContent = (props: any) => {
 };
 
 interface PortfolioCompositionProps {
-  assets: Holding[];
+  holdings: Holding[];
   isLoading?: boolean;
 }
 
-export function PortfolioComposition({ assets, isLoading }: PortfolioCompositionProps) {
-  const [returnType, setReturnType] = useState<ReturnType>('daily');
-  const { settings } = useSettingsContext();
-  const data = useMemo(() => {
-    const data: {
-      [symbol: string]: {
-        name: string;
-        marketValueConverted: number;
-        bookBalueConverted: number;
-        gain: number;
-      };
-    } = {};
+const CompositionTooltip = ({ active, payload, settings }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const value = payload[0].value;
+    const gain = data.gain || 0;
+    const isPositive = gain >= 0;
 
+    return (
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          {/* Header with symbol and name */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-primary">{data.symbol}</span>
+              <span className="text-xs text-muted-foreground">
+                {data.asOfDate ? new Date(data.asOfDate).toLocaleDateString() : ''}
+              </span>
+            </div>
+            <p className="text-xs leading-tight text-muted-foreground">{data.name}</p>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t" />
+
+          {/* Market Value */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="pr-6 text-sm text-muted-foreground">Market Value</span>
+              <span className="text-sm font-semibold">
+                {formatAmount(value, settings?.baseCurrency || 'USD')}
+              </span>
+            </div>
+
+            {/* Gain/Loss */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Return</span>
+              <span
+                className={cn(
+                  'flex items-center gap-1 text-sm font-semibold',
+                  isPositive ? 'text-success' : 'text-destructive',
+                )}
+              >
+                {isPositive ? '+' : ''}
+                {formatPercent(gain)}
+                <span className="text-xs">{isPositive ? '↗' : '↘'}</span>
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  return null;
+};
+
+export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositionProps) {
+  const [returnType, setReturnType] = usePersistentState<ReturnType>(
+    'composition-return-type',
+    'daily',
+  );
+  const [displayMode, setDisplayMode] = usePersistentState<DisplayMode>(
+    'composition-display-mode',
+    'symbol',
+  );
+  const { settings } = useSettingsContext();
+
+  const toggleDisplayMode = () => {
+    setDisplayMode((prev) => (prev === 'symbol' ? 'name' : 'symbol'));
+  };
+  const data = useMemo(() => {
     let maxGain = -Infinity;
     let minGain = Infinity;
 
-    assets.forEach((asset) => {
-      if (asset.symbol) {
-        const symbol = asset.symbol;
+    // Map holdings directly, assuming backend provides aggregated data
+    const processedData = holdings
+      .map((holding) => {
+        const symbol = holding.instrument?.symbol;
+        if (!symbol) return null; // Skip if no symbol
+
         const gain =
           returnType === 'daily'
-            ? Number(asset.performance.dayGainPercent)
-            : Number(asset.performance.totalGainPercent);
+            ? Number(holding.dayChangePct) || 0
+            : Number(holding.totalGainPct) || 0;
 
+        const marketValue = Number(holding.marketValue?.base) || 0;
+
+        // Basic validation
+        if (isNaN(gain) || isNaN(marketValue) || marketValue <= 0) return null;
+
+        // Update min/max gain across all valid holdings
         maxGain = Math.max(maxGain, gain);
         minGain = Math.min(minGain, gain);
 
-        if (data[symbol]) {
-          data[symbol].marketValueConverted += Number(asset.marketValueConverted);
-          data[symbol].bookBalueConverted += Number(asset.bookValueConverted);
-          data[symbol].gain = gain;
-        } else {
-          data[symbol] = {
-            name: symbol,
-            marketValueConverted: Number(asset.marketValueConverted),
-            bookBalueConverted: Number(asset.bookValueConverted),
-            gain,
-          };
-        }
-      }
-    });
+        return {
+          symbol: symbol,
+          name: holding.instrument?.name, // Use symbol for the treemap node name/link
+          marketValueConverted: marketValue,
+          gain,
+          asOfDate: holding.asOfDate,
+          // We'll add min/max gain later after iterating through all
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null) // Explicit non-null filter
+      // Add minGain and maxGain to each item after calculating them
+      .map((item) => ({
+        ...item,
+        maxGain,
+        minGain,
+      }));
 
-    // Convert the object values to an array
-    const dataArray = Object.values(data).map((item) => ({
-      ...item,
-      maxGain,
-      minGain,
-    }));
+    // Sort by market value after processing all holdings
+    processedData.sort((a, b) => b.marketValueConverted - a.marketValueConverted);
 
-    // Sort the array by marketValue in descending order
-    dataArray.sort((a, b) => b.marketValueConverted - a.marketValueConverted);
-
-    return dataArray;
-  }, [assets, returnType]);
+    return processedData;
+  }, [holdings, returnType]);
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center space-x-2">
-            <BarChart className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-md font-medium">Holding Composition</CardTitle>
+            <Icons.LayoutDashboard className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+              Holding Composition
+            </CardTitle>
           </div>
-          <div className="flex space-x-1 rounded-full bg-secondary p-1">
-            <Skeleton className="h-8 w-24 rounded-full" />
-            <Skeleton className="h-8 w-24 rounded-full" />
+          <div className="flex items-center space-x-3">
+            <Skeleton className="h-8 w-8 rounded-full" />
+            <div className="flex space-x-1 rounded-full bg-secondary p-1">
+              <Skeleton className="h-8 w-24 rounded-full" />
+              <Skeleton className="h-8 w-24 rounded-full" />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -209,14 +324,38 @@ export function PortfolioComposition({ assets, isLoading }: PortfolioComposition
     );
   }
 
+  if (holdings.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center space-x-2">
+            <Icons.LayoutDashboard className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-md font-medium">Holding Composition</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="flex h-[500px] items-center justify-center">
+          <EmptyPlaceholder
+            icon={<Icons.BarChart className="h-10 w-10" />}
+            title="No holdings data"
+            description="There is no holdings data available for your portfolio."
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center space-x-2">
-          <BarChart className="h-4 w-4 text-muted-foreground" />
-          <CardTitle className="text-md font-medium">Holding Composition</CardTitle>
+          <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            Holding Composition
+          </CardTitle>
         </div>
-        <ReturnTypeSelector selectedType={returnType} onTypeSelect={setReturnType} />
+        <div className="flex items-center space-x-3">
+          <DisplayModeToggle displayMode={displayMode} onToggle={toggleDisplayMode} />
+          <ReturnTypeSelector selectedType={returnType} onTypeSelect={setReturnType} />
+        </div>
       </CardHeader>
       <CardContent className="pl-2">
         <ResponsiveContainer width="100%" height={500}>
@@ -226,8 +365,12 @@ export function PortfolioComposition({ assets, isLoading }: PortfolioComposition
             data={data}
             dataKey="marketValueConverted"
             animationDuration={100}
-            content={<CustomizedContent theme={settings?.theme || 'light'} />}
-          />
+            content={
+              <CustomizedContent theme={settings?.theme || 'light'} displayMode={displayMode} />
+            }
+          >
+            <ChartTooltip content={<CompositionTooltip settings={settings} />} />
+          </Treemap>
         </ResponsiveContainer>
       </CardContent>
     </Card>

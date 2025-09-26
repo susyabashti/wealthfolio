@@ -5,7 +5,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 
-import { Icons } from '@/components/icons';
+import { Icons } from '@/components/ui/icons';
 import {
   DialogDescription,
   DialogFooter,
@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { useAccountMutations } from './useAccountMutations';
+import { useAccountMutations } from './use-account-mutations';
 
 const accountTypes = [
   { label: 'Securities', value: 'SECURITIES' },
@@ -39,7 +39,7 @@ const accountTypes = [
 ] as const;
 
 import { newAccountSchema } from '@/lib/schemas';
-import { CurrencyInput } from '@/components/ui/currency-input';
+import { CurrencyInput } from '@wealthfolio/ui';
 
 type NewAccount = z.infer<typeof newAccountSchema>;
 
@@ -139,7 +139,7 @@ export function AccountForm({ defaultValues, onSuccess = () => {} }: AccountForm
                   <FormControl>
                     <CurrencyInput
                       value={field.value}
-                      onChange={(value) => field.onChange(value)}
+                      onChange={(value: string) => field.onChange(value)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -180,7 +180,11 @@ export function AccountForm({ defaultValues, onSuccess = () => {} }: AccountForm
             <Button variant="outline">Cancel</Button>
           </DialogTrigger>
           <Button type="submit">
-            <Icons.Plus className="h-4 w-4" />
+            {defaultValues?.id ? (
+              <Icons.Save className="h-4 w-4" />
+            ) : (
+              <Icons.Plus className="h-4 w-4" />
+            )}
             <span className="hidden sm:ml-2 sm:inline">
               {defaultValues?.id ? 'Update Account' : 'Add Account'}
             </span>

@@ -1,25 +1,21 @@
 import { useState } from 'react';
-import { EmptyPlaceholder } from '@/components/empty-placeholder';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { Icons } from '@/components/icons';
+import { EmptyPlaceholder, Separator, Icons, Button, Skeleton } from '@wealthfolio/ui';
 import type { ContributionLimit } from '@/lib/types';
 import { SettingsHeader } from '../header';
 import { getContributionLimit } from '@/commands/contribution-limits';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { QueryKeys } from '@/lib/query-keys';
-import { useContributionLimitMutations } from './useContributionLimitMutations';
+import { useContributionLimitMutations } from './use-contribution-limit-mutations';
 import { ContributionLimitItem } from './components/contribution-limit-item';
 import { ContributionLimitEditModal } from './components/contribution-limit-edit-modal';
-import { useAccounts } from '@/pages/account/useAccounts';
+import { useAccounts } from '@/hooks/use-accounts';
 
 const SettingsContributionLimitPage = () => {
   const [visibleModal, setVisibleModal] = useState(false);
   const [selectedLimit, setSelectedLimit] = useState<ContributionLimit | null>(null);
   const [showPreviousYears, setShowPreviousYears] = useState(false);
 
-  const { data: accounts } = useAccounts();
+  const { accounts } = useAccounts();
 
   const { data: limits, isLoading } = useQuery<ContributionLimit[], Error>({
     queryKey: [QueryKeys.CONTRIBUTION_LIMITS],

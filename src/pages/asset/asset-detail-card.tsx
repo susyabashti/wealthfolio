@@ -2,15 +2,15 @@ import React from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { formatAmount, formatPercent } from '@/lib/utils';
-import { AmountDisplay } from '@/components/amount-display';
-import { QuantityDisplay } from '@/components/quantity-display';
+import { formatPercent } from '@wealthfolio/ui';
+import { AmountDisplay } from '@wealthfolio/ui';
+import { QuantityDisplay } from '@wealthfolio/ui';
 import { useBalancePrivacy } from '@/context/privacy-context';
 
 interface AssetDetail {
   numShares: number;
   marketValue: number;
-  bookValue: number;
+  costBasis: number;
   averagePrice: number;
   portfolioPercent: number;
   todaysReturn: number | null;
@@ -40,7 +40,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
   const {
     numShares,
     marketValue,
-    bookValue,
+    costBasis,
     averagePrice,
     portfolioPercent,
     todaysReturn,
@@ -54,7 +54,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
   const holdingRows = [
     {
       label: 'Book value',
-      value: <AmountDisplay value={bookValue} currency={currency} isHidden={isBalanceHidden} />,
+      value: <AmountDisplay value={costBasis} currency={currency} isHidden={isBalanceHidden} />,
     },
     {
       label: 'Average cost',
@@ -81,7 +81,16 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
       : []),
     {
       label: 'Total return',
-      value: `${formatAmount(totalReturn, currency)} (${formatPercent(totalReturnPercent)})`,
+      value: (
+              <>
+                <AmountDisplay
+                  value={totalReturn}
+                  currency={currency}
+                  isHidden={isBalanceHidden}
+                />{' '}
+                ({formatPercent(totalReturnPercent)})
+              </>
+            ),
       color: totalReturn < 0 ? 'text-destructive' : 'text-success',
     },
   ];
@@ -119,7 +128,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
         {quote && (
           <>
             <Separator className="my-4" />
-            <div className="rounded-lg bg-muted/50">
+            <div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground">Open</span>

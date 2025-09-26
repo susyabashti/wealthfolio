@@ -1,12 +1,25 @@
 import {
-  AssetData,
   QuoteSummary,
   Asset,
   Quote,
-  QuoteUpdate,
   UpdateAssetProfile,
+  MarketDataProviderInfo,
 } from '@/lib/types';
 import { getRunEnv, RUN_ENV, invokeTauri, logger } from '@/adapters';
+
+// Interface matching the backend struct
+export interface MarketDataProviderSetting {
+  id: string;
+  name: string;
+  description: string;
+  url: string | null;
+  priority: number;
+  enabled: boolean;
+  logoFilename: string | null;
+  lastSyncedAt: string | null;
+  lastSyncStatus: string | null;
+  lastSyncError: string | null;
+}
 
 export const searchTicker = async (query: string): Promise<QuoteSummary[]> => {
   try {
@@ -37,11 +50,11 @@ export const syncHistoryQuotes = async (): Promise<void> => {
   }
 };
 
-export const getAssetData = async (assetId: string): Promise<AssetData> => {
+export const getAssetProfile = async (assetId: string): Promise<Asset> => {
   try {
     switch (getRunEnv()) {
       case RUN_ENV.DESKTOP:
-        return invokeTauri('get_asset_data', { assetId });
+        return invokeTauri('get_asset_profile', { assetId });
       default:
         throw new Error(`Unsupported`);
     }
@@ -83,25 +96,7 @@ export const updateQuote = async (symbol: string, quote: Quote): Promise<void> =
   try {
     const runEnv = await getRunEnv();
     if (runEnv === RUN_ENV.DESKTOP) {
-      // Convert Date to YYYY-MM-DD format
-      const formatDate = (date: Date | string) => {
-        const d = date instanceof Date ? date : new Date(date);
-        return d.toISOString().split('T')[0];
-      };
-
-      // Create QuoteUpdate object
-      const quoteUpdate: QuoteUpdate = {
-        date: formatDate(quote.date),
-        symbol,
-        open: quote.open,
-        high: quote.high,
-        low: quote.low,
-        volume: quote.volume,
-        close: quote.close,
-        dataSource: 'MANUAL',
-      };
-
-      return invokeTauri('update_quote', { symbol, quote: quoteUpdate });
+      return invokeTauri('update_quote', { symbol, quote: quote });
     }
   } catch (error) {
     logger.error('Error updating quote');
@@ -109,17 +104,17 @@ export const updateQuote = async (symbol: string, quote: Quote): Promise<void> =
   }
 };
 
-export const refreshQuotesForSymbols = async (symbols: string[]): Promise<void> => {
+export const syncMarketData = async (symbols: string[], refetchAll: boolean): Promise<void> => {
   try {
     switch (getRunEnv()) {
       case RUN_ENV.DESKTOP:
-        await invokeTauri('refresh_quotes_for_symbols', { symbols });
+        await invokeTauri('sync_market_data', { symbols, refetchAll });
         return;
       default:
         throw new Error(`Unsupported`);
     }
   } catch (error) {
-    logger.error('Error refreshing quotes for symbols.');
+    logger.error(`Error refreshing quotes for symbols: ${error}`);
     throw error;
   }
 };
@@ -132,6 +127,69 @@ export const deleteQuote = async (id: string): Promise<void> => {
     }
   } catch (error) {
     logger.error('Error deleting quote');
+    throw error;
+  }
+};
+
+
+export const getQuoteHistory = async (symbol: string): Promise<Quote[]> => {
+  try {
+    switch (getRunEnv()) {
+      case RUN_ENV.DESKTOP:
+        return await invokeTauri('get_quote_history', { symbol });
+      default:
+        throw new Error(`Unsupported environment`);
+    }
+    
+  } catch (error) {
+    logger.error(`Error fetching quote history for symbol ${symbol}.`);
+    throw error;
+  }
+};
+
+export const getMarketDataProviders = async (): Promise<MarketDataProviderInfo[]> => {
+  try {
+    switch (getRunEnv()) {
+      case RUN_ENV.DESKTOP:
+        return invokeTauri('get_market_data_providers');
+      default:
+        logger.error('Unsupported environment for getMarketDataProviders');
+        throw new Error(`Unsupported environment`);
+    }
+  } catch (error) {
+    logger.error('Error fetching market data providers.');
+    throw error;
+  }
+};
+
+export const getMarketDataProviderSettings = async (): Promise<MarketDataProviderSetting[]> => {
+  try {
+    switch (getRunEnv()) {
+      case RUN_ENV.DESKTOP:
+        return invokeTauri('get_market_data_providers_settings');
+      default:
+        throw new Error(`Unsupported environment`);
+    }
+  } catch (error) {
+    logger.error('Error fetching market data provider settings.');
+    throw error;
+  }
+};
+
+export const updateMarketDataProviderSettings = async (payload: {
+  providerId: string;
+  priority: number;
+  enabled: boolean;
+}): Promise<MarketDataProviderSetting> => {
+  try {
+    switch (getRunEnv()) {
+      case RUN_ENV.DESKTOP:
+        return invokeTauri('update_market_data_provider_settings', payload);
+      default:
+        throw new Error(`Unsupported environment`);
+    }
+  } catch (error) {
+    logger.error('Error updating market data provider settings.');
     throw error;
   }
 };

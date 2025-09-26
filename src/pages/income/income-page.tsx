@@ -1,41 +1,31 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, PieChart as PieChartIcon } from 'lucide-react';
 import { ApplicationHeader } from '@/components/header';
-import { ApplicationShell } from '@/components/shell';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ApplicationShell } from '@wealthfolio/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Bar,
-  ComposedChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Line,
   PieChart,
   Pie,
   Cell,
 } from 'recharts';
 import {
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { Icons } from '@/components/icons';
+import { Icons } from '@/components/ui/icons';
 import { getIncomeSummary } from '@/commands/portfolio';
 import type { IncomeSummary } from '@/lib/types';
 import { QueryKeys } from '@/lib/query-keys';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { GainPercent } from '@/components/gain-percent';
+import { GainPercent } from '@wealthfolio/ui';
 import { EmptyPlaceholder } from '@/components/ui/empty-placeholder';
 import { Badge } from '@/components/ui/badge';
-import { PrivacyAmount } from '@/components/privacy-amount';
+import { PrivacyAmount } from '@wealthfolio/ui';
 import { useBalancePrivacy } from '@/context/privacy-context';
-import { formatAmount } from '@/lib/utils';
-import { format } from 'date-fns';
-import { AmountDisplay } from '@/components/amount-display';
+import { AmountDisplay } from '@wealthfolio/ui';
+import { IncomeHistoryChart } from './income-history-chart';
 
 const periods: { code: 'TOTAL' | 'YTD' | 'LAST_YEAR'; label: string }[] = [
   { code: 'TOTAL', label: 'All Time' },
@@ -121,11 +111,12 @@ export default function IncomePage() {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10);
 
-  const monthlyIncomeData = Object.entries(periodSummary.byMonth)
+  const monthlyIncomeData: [string, number][] = Object.entries(periodSummary.byMonth)
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(selectedPeriod === 'TOTAL' ? 0 : -12);
+    .slice(selectedPeriod === 'TOTAL' ? 0 : -12)
+    .map(([month, income]) => [month, Number(income) || 0]);
 
-  const getPreviousPeriodData = (currentMonth: string) => {
+  const getPreviousPeriodData = (currentMonth: string): number => {
     const [year, month] = currentMonth.split('-');
     let previousYear = parseInt(year) - 1;
     let previousMonth = month;
@@ -141,28 +132,33 @@ export default function IncomePage() {
     }
 
     const previousYearMonth = `${previousYear}-${previousMonth}`;
-    return totalSummary.byMonth[previousYearMonth] || 0;
+    const previousIncome = totalSummary.byMonth[previousYearMonth];
+    return Number(previousIncome) || 0;
   };
 
-  const previousMonthlyIncomeData = monthlyIncomeData.map(([month]) => [
+  const previousMonthlyIncomeData: [string, number][] = monthlyIncomeData.map(([month]) => [
     month,
     getPreviousPeriodData(month),
   ]);
 
   const previousMonthlyAverage =
     previousMonthlyIncomeData.length > 0
-      ? previousMonthlyIncomeData.reduce((sum, [, value]) => sum + (value as number), 0) /
-        previousMonthlyIncomeData.length
+      ? previousMonthlyIncomeData.reduce((sum, [, value]) => {
+          const numericValue = Number(value) || 0;
+          return sum + numericValue;
+        }, 0) / previousMonthlyIncomeData.length
       : 0;
+
+  const currentMonthlyAverageNumber = Number(monthlyAverage) || 0;
 
   const monthlyAverageChange =
     previousMonthlyAverage > 0
-      ? ((monthlyAverage - previousMonthlyAverage) / previousMonthlyAverage) * 100
+      ? (currentMonthlyAverageNumber - previousMonthlyAverage) / previousMonthlyAverage
       : 0;
 
   const currencyData = Object.entries(byCurrency).map(([currency, amount]) => ({
     currency,
-    amount,
+    amount: Number(amount) || 0,
   }));
 
   const { isBalanceHidden } = useBalancePrivacy();
@@ -188,7 +184,7 @@ export default function IncomePage() {
                     ? 'Last Year Income'
                     : 'This Year Income'}
               </CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Icons.DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
@@ -249,12 +245,12 @@ export default function IncomePage() {
           <Card className="border-blue-500/10 bg-blue-500/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Monthly Average</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Icons.DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
                 <AmountDisplay
-                  value={monthlyAverage}
+                  value={currentMonthlyAverageNumber}
                   currency={currency}
                   isHidden={isBalanceHidden}
                 />
@@ -268,7 +264,7 @@ export default function IncomePage() {
           <Card className="border-purple-500/10 bg-purple-500/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Income Sources</CardTitle>
-              <PieChartIcon className="h-4 w-4 text-muted-foreground" />
+              <Icons.PieChart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -318,131 +314,13 @@ export default function IncomePage() {
           </Card>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
-          <Card className="col-span-2">
-            <CardHeader>
-              <CardTitle className="text-xl">Income History</CardTitle>
-              <CardDescription>
-                {selectedPeriod === 'TOTAL'
-                  ? 'All Time'
-                  : selectedPeriod === 'YTD'
-                    ? 'Year to Date'
-                    : selectedPeriod === 'LAST_YEAR'
-                      ? 'Last Year'
-                      : 'Two Years Ago'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {monthlyIncomeData.length === 0 ? (
-                <EmptyPlaceholder
-                  className="mx-auto flex h-[300px] max-w-[420px] items-center justify-center"
-                  icon={<Icons.Activity className="h-10 w-10" />}
-                  title="No income history available"
-                  description="There is no income history for the selected period. Try selecting a different time range or check back later."
-                />
-              ) : (
-                <ChartContainer
-                  config={{
-                    income: {
-                      label: 'Monthly Income',
-                      color: 'hsl(var(--chart-1))',
-                    },
-                    cumulative: {
-                      label: 'Cumulative Income',
-                      color: 'hsl(var(--chart-5))',
-                    },
-                    previousIncome: {
-                      label: 'Previous Period Income',
-                      color: 'hsl(var(--chart-5))',
-                    },
-                  }}
-                >
-                  <ComposedChart
-                    data={monthlyIncomeData.map(([month, income], index) => ({
-                      month,
-                      income,
-                      cumulative: monthlyIncomeData
-                        .slice(0, index + 1)
-                        .reduce((sum, [, value]) => sum + value, 0),
-                      previousIncome: previousMonthlyIncomeData[index][1],
-                    }))}
-                  >
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="month"
-                      tickLine={false}
-                      tickMargin={10}
-                      axisLine={false}
-                      tickFormatter={(value) => value}
-                    />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value, name, entry) => {
-                            const formattedValue = isBalanceHidden
-                              ? '••••'
-                              : formatAmount(Number(value), currency);
-                            return (
-                              <>
-                                <div
-                                  className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
-                                  style={
-                                    {
-                                      '--color-bg': entry.color,
-                                      '--color-border': entry.color,
-                                    } as React.CSSProperties
-                                  }
-                                />
-                                <div className="flex flex-1 items-center justify-between">
-                                  <span className="text-muted-foreground">
-                                    {name === 'income'
-                                      ? 'Monthly Income'
-                                      : name === 'previousIncome'
-                                        ? 'Previous Period'
-                                        : name}
-                                  </span>
-                                  <span className="ml-2 font-mono font-medium tabular-nums text-foreground">
-                                    {formattedValue}
-                                  </span>
-                                </div>
-                              </>
-                            );
-                          }}
-                          labelFormatter={(label) => format(new Date(label), 'MMMM yyyy')}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="income"
-                      fill="var(--color-income)"
-                      radius={[8, 8, 0, 0]}
-                      barSize={25}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="cumulative"
-                      stroke="var(--color-cumulative)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="previousIncome"
-                      stroke="var(--color-previousIncome)"
-                      strokeWidth={2}
-                      dot={false}
-                      strokeDasharray="3 3"
-                    />
-                  </ComposedChart>
-                </ChartContainer>
-              )}
-            </CardContent>
-          </Card>
+          <IncomeHistoryChart
+            monthlyIncomeData={monthlyIncomeData}
+            previousMonthlyIncomeData={previousMonthlyIncomeData}
+            selectedPeriod={selectedPeriod}
+            currency={currency}
+            isBalanceHidden={isBalanceHidden}
+          />
           <Card>
             <CardHeader>
               <CardTitle className="text-xl">Top 10 Dividend Sources</CardTitle>
@@ -456,7 +334,71 @@ export default function IncomePage() {
                   description="There are no dividend sources for the selected period. Try selecting a different time range or check back later."
                 />
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-6">
+                  {/* Horizontal Bar Chart - Separated Bars */}
+                    <div className="flex w-full space-x-0.5">
+                    {(() => {
+                      const top5Stocks = topDividendStocks.slice(0, 5);
+                      const otherStocks = topDividendStocks.slice(5);
+                      const otherTotal = otherStocks.reduce((sum, [, income]) => sum + income, 0);
+                      
+                      const chartItems = [
+                        ...top5Stocks.map(([symbol, income]) => ({
+                          symbol: symbol.match(/\[(.*?)\]/)?.[1] || symbol,
+                          companyName: symbol.replace(/\[.*?\]-/, '').trim(),
+                          income,
+                          isOther: false,
+                        })),
+                        ...(otherTotal > 0 ? [{
+                          symbol: 'Other',
+                          companyName: `${otherStocks.length} other sources`,
+                          income: otherTotal,
+                          isOther: true,
+                        }] : []),
+                      ];
+
+                      const colors = [
+                        'hsl(var(--chart-1))',
+                        'hsl(var(--chart-2))',
+                        'hsl(var(--chart-3))',
+                        'hsl(var(--chart-4))',
+                        'hsl(var(--chart-5))',
+                        'hsl(var(--chart-6))',
+                      ];
+
+                      return chartItems.map((item, index) => {
+                        const percentage = dividendIncome > 0 ? (item.income / dividendIncome) * 100 : 0;
+                        
+                        return (
+                          <div
+                            key={index}
+                            className="group relative h-5 cursor-pointer rounded-lg transition-all duration-300 ease-in-out hover:brightness-110"
+                            style={{
+                              width: `${percentage}%`,
+                              backgroundColor: colors[index % colors.length],
+                            }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 transform group-hover:block">
+                              <div className="min-w-[180px] rounded-lg border bg-popover px-3 py-2 text-popover-foreground shadow-md">
+                                <div className="text-sm font-medium">{item.symbol}</div>
+                                <div className="text-xs text-muted-foreground">{item.companyName}</div>
+                                <div className="text-sm font-medium">
+                                  <PrivacyAmount value={item.income} currency={currency} />
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {percentage.toFixed(1)}% of total
+                                </div>
+                                {/* Tooltip arrow */}
+                                <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 transform border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-border"></div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                    </div>
+
                   {topDividendStocks.map(([symbol, income], index) => (
                     <div key={index} className="flex items-center justify-between">
                       <div className="flex items-center">
@@ -484,7 +426,7 @@ export default function IncomePage() {
 
 function IncomeDashboardSkeleton() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+  <div className="flex h-full flex-col bg-background">
       <main className="flex-1 space-y-6 px-4 py-6 md:px-6">
         <div className="grid gap-6 md:grid-cols-3">
           {[...Array(3)].map((_, index) => (

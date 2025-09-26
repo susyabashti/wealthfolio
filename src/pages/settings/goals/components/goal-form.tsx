@@ -5,7 +5,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 
-import { Icons } from '@/components/icons';
+import { Icons } from '@/components/ui/icons';
 
 import {
   DialogDescription,
@@ -25,8 +25,8 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { newGoalSchema } from '@/lib/schemas';
-import { useGoalMutations } from '@/pages/settings/goals/useGoalMutations';
-import { MoneyInput } from '@/components/ui/money-input';
+import { useGoalMutations } from '@/pages/settings/goals/use-goal-mutations';
+import { MoneyInput } from '@wealthfolio/ui';
 
 type NewGoal = z.infer<typeof newGoalSchema>;
 

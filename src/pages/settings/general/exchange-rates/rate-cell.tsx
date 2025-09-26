@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ExchangeRate } from '@/lib/types';
-import { Icons } from '@/components/icons';
+import { Icons } from '@/components/ui/icons';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
@@ -58,7 +58,7 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
             className="w-full"
           />
         ) : (
-          <span>{rate.rate ? rate.rate.toFixed(4) : '-'}</span>
+          <span>{rate.rate ? rate.rate : '-'}</span>
         )}
       </div>
       {isManual && (

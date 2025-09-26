@@ -28,6 +28,8 @@
       ]
     },
     "core:window:allow-start-dragging",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
     "shell:allow-open",
     "dialog:allow-open",
     "dialog:allow-save",
@@ -37,6 +39,7 @@
     "core:app:allow-set-app-theme",
     "core:window:allow-set-theme",
     "updater:default",
-    "log:default"
+    "log:default",
+    "window-state:default"
   ]
 }

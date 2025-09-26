@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { Account, Goal, GoalAllocation } from '@/lib/types';
-import { formatAmount } from '@/lib/utils';
+import { formatAmount } from '@wealthfolio/ui';
 import React, { useState, useEffect } from 'react';
 
 interface GoalsAllocationsProps {
@@ -61,7 +61,6 @@ const GoalsAllocations: React.FC<GoalsAllocationsProps> = ({
 
   const handleSubmit = () => {
     if (isExceeding) {
-      alert("Total allocation for an account can't exceed 100%");
       toast({
         title: "Total allocation for an account can't exceed 100%.",
         className: 'bg-red-500 text-white border-none',
